@@ -1,4 +1,6 @@
 def test():
+    print("This is a test function.")
+    return True
     print("NOT A TES FN")
     return True
 print("FILE LOADED")
