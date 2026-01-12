@@ -227,8 +227,12 @@ jobs:
             echo "[CHECK-ALL] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
             
             # Fetch branches
+            # Fetch base branch normally
             git fetch origin ${PR_BASE_REF}:refs/remotes/origin/${PR_BASE_REF} 2>/dev/null || true
-            git fetch origin ${PR_HEAD_REF}:refs/remotes/origin/${PR_HEAD_REF} 2>/dev/null || true
+
+            # Fetch PR head via PR ref (ALWAYS exists)
+            git fetch origin pull/${pr_number}/head:refs/remotes/origin/pr-${pr_number}-head 2>/dev/null || true
+
             
             # Get PR files
             gh pr view ${pr_number} --json files --jq '.files[].path' > "pr_${pr_number}_files.txt"
