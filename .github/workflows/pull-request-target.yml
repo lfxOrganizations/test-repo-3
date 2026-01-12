@@ -311,35 +311,35 @@ jobs:
               echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
               gh pr comment ${pr_number} --body "⚠️ **Merge Conflict Detected**
 
-            This PR has merge conflicts with the base branch \`${PR_BASE_REF}\`.
+              This PR has merge conflicts with the base branch \`${PR_BASE_REF}\`.
 
-            **Conflicted files:**
-            ${CONFLICT_LIST}
+              **Conflicted files:**
+              ${CONFLICT_LIST}
 
-            **Action required:**
-            \`\`\`bash
-            git fetch origin
-            git checkout ${PR_HEAD_REF}
-            git merge origin/${PR_BASE_REF}
-            # Resolve conflicts
-            git commit
-            git push
-            \`\`\`
+                **Action required:**
+                \`\`\`bash
+                git fetch origin
+                git checkout ${PR_HEAD_REF}
+                git merge origin/${PR_BASE_REF}
+                # Resolve conflicts
+                git commit
+                git push
+                \`\`\`
 
-            _This check was triggered by a push to \`${PR_BASE_REF}\`_"
-            else
-            echo "[CHECK-ALL] ✅ PR #${pr_number} - No conflicts detected"
+                _This check was triggered by a push to \`${PR_BASE_REF}\`_"
+                else
+                echo "[CHECK-ALL] ✅ PR #${pr_number} - No conflicts detected"
+                fi
+
+            done < pr_numbers.txt
+  
+            echo "[CHECK-ALL] ========================================"
+            echo "[CHECK-ALL] BATCH CHECK COMPLETE"
+            echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
+            echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
+  
+            if [ "${FAILED_COUNT}" -gt 0 ]; then
+              echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
             fi
-
-                    done < pr_numbers.txt
-
-                    echo "[CHECK-ALL] ========================================"
-                    echo "[CHECK-ALL] BATCH CHECK COMPLETE"
-                    echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
-                    echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
-
-                    if [ "${FAILED_COUNT}" -gt 0 ]; then
-                        echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
-                    fi
-
-                    echo "[CHECK-ALL] ========================================"
+  
+            echo "[CHECK-ALL] ========================================"
