@@ -226,15 +226,7 @@ jobs:
             echo "[CHECK-ALL] Base: ${PR_BASE_REF} @ ${PR_BASE_SHA}"
             echo "[CHECK-ALL] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
             
-            # Fetch base branch
-            echo "[CHECK-ALL] Fetching base branch: ${PR_BASE_REF}"
-            git fetch origin ${PR_BASE_REF}:refs/remotes/origin/${PR_BASE_REF}
-            
-            # Fetch PR head using pull ref (works for both same-repo and fork PRs)
-            echo "[CHECK-ALL] Fetching PR head via pull/${pr_number}/head"
-            git fetch origin pull/${pr_number}/head:refs/remotes/pr/${pr_number}/head
-            
-            # Get PR files
+            # Get PR files first
             gh pr view ${pr_number} --json files --jq '.files[].path' > "pr_${pr_number}_files.txt"
             FILE_COUNT=$(wc -l < "pr_${pr_number}_files.txt" | tr -d ' ')
             echo "[CHECK-ALL] Files changed: ${FILE_COUNT}"
@@ -244,43 +236,58 @@ jobs:
               continue
             fi
             
-            # Create temporary merge test branch
-            echo "[CHECK-ALL] Creating temporary merge test branch"
-            git checkout -B pr-${pr_number}-merge-test origin/${PR_BASE_REF} --quiet
-
-            # Attempt merge using the fetched PR head
-            echo "[CHECK-ALL] Attempting test merge"
+            # Calculate merge-base
+            echo "[CHECK-ALL] Fetching commits for merge-base calculation"
+            git fetch origin ${PR_BASE_SHA} >/dev/null 2>&1 || true
+            git fetch origin pull/${pr_number}/head >/dev/null 2>&1 || true
+            
+            echo "[CHECK-ALL] Calculating merge-base"
+            MERGE_BASE=$(git merge-base ${PR_BASE_SHA} ${PR_HEAD_SHA} 2>/dev/null || echo "")
+            
+            if [ -z "${MERGE_BASE}" ]; then
+              echo "[CHECK-ALL] ⚠️  Could not calculate merge-base - skipping"
+              continue
+            fi
+            
+            echo "[CHECK-ALL] Merge-base: ${MERGE_BASE}"
+            
+            # Use git merge-tree for conflict detection (non-destructive)
+            echo "[CHECK-ALL] Running git merge-tree to detect conflicts"
             set +e
-            git merge --no-commit --no-ff pr/${pr_number}/head >/tmp/merge_${pr_number}.log 2>&1
+            MERGE_OUTPUT=$(git merge-tree ${MERGE_BASE} ${PR_BASE_SHA} ${PR_HEAD_SHA} 2>&1)
             MERGE_EXIT_CODE=$?
             set -e
+            
+            echo "[CHECK-ALL] Merge-tree exit code: ${MERGE_EXIT_CODE}"
+            
+            # Save merge output to file for debugging
+            echo "${MERGE_OUTPUT}" > /tmp/merge_tree_${pr_number}.log
+            
+            # Check for CONFLICT markers in output
+            touch "pr_${pr_number}_conflicts.txt"
+            echo "${MERGE_OUTPUT}" | grep "^CONFLICT" | \
+              sed -E 's/^CONFLICT \([^)]+\): Merge conflict in (.+)$/\1/' | \
+              grep -v "^CONFLICT" > "pr_${pr_number}_conflicts.txt" || true
+            
+            RAW_CONFLICT_COUNT=$(wc -l < "pr_${pr_number}_conflicts.txt" | tr -d ' ')
+            echo "[CHECK-ALL] Conflicts detected by merge-tree: ${RAW_CONFLICT_COUNT}"
+            
+            if [ "${RAW_CONFLICT_COUNT}" -gt 0 ]; then
+              echo "[CHECK-ALL] Conflicted files:"
+              cat "pr_${pr_number}_conflicts.txt" | while read file; do
+                echo "[CHECK-ALL]   - ${file}"
+              done
+            fi
 
-            echo "[CHECK-ALL] Merge exit code: ${MERGE_EXIT_CODE}"
-
+            # Filter to only files that were changed in the PR
             touch "pr_${pr_number}_filtered.txt"
-
-            if [ "${MERGE_EXIT_CODE}" -ne 0 ]; then
-              echo "[CHECK-ALL] Merge failed - checking for conflicts"
-              
-              # Get list of conflicted files
-              git diff --name-only --diff-filter=U > pr_${pr_number}_conflicts.txt
-              
-              CONFLICT_COUNT_RAW=$(wc -l < pr_${pr_number}_conflicts.txt | tr -d ' ')
-              echo "[CHECK-ALL] Raw conflicts detected: ${CONFLICT_COUNT_RAW}"
-
-              # Filter to only files that were changed in the PR
+            if [ -s "pr_${pr_number}_conflicts.txt" ]; then
               while IFS= read -r conflict_file; do
                 if grep -Fxq "${conflict_file}" "pr_${pr_number}_files.txt"; then
                   echo "${conflict_file}" >> "pr_${pr_number}_filtered.txt"
                 fi
-              done < pr_${pr_number}_conflicts.txt
+              done < "pr_${pr_number}_conflicts.txt"
             fi
-
-            # Cleanup
-            echo "[CHECK-ALL] Cleaning up temporary branches"
-            git merge --abort >/dev/null 2>&1 || true
-            git checkout - >/dev/null 2>&1 || true
-            git branch -D pr-${pr_number}-merge-test >/dev/null 2>&1 || true
 
             CONFLICT_COUNT=0
             if [ -s "pr_${pr_number}_filtered.txt" ]; then
@@ -292,14 +299,14 @@ jobs:
             if [ "${CONFLICT_COUNT}" -gt 0 ]; then
               echo "[CHECK-ALL] ❌ PR #${pr_number} has ${CONFLICT_COUNT} conflicted file(s)"
               
-              cat pr_${pr_number}_filtered.txt | while read file; do
+              cat "pr_${pr_number}_filtered.txt" | while read file; do
                 echo "[CHECK-ALL]   ⚠️  ${file}"
               done
 
               FAILED_PRS="${FAILED_PRS}${pr_number},"
               FAILED_COUNT=$((FAILED_COUNT + 1))
 
-              CONFLICT_LIST=$(sed 's/^/- /' pr_${pr_number}_filtered.txt | head -n 100)
+              CONFLICT_LIST=$(sed 's/^/- /' "pr_${pr_number}_filtered.txt" | head -n 100)
 
               echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
               gh pr comment ${pr_number} --body "⚠️ **Merge Conflict Detected**
@@ -314,22 +321,25 @@ jobs:
             git fetch origin
             git checkout ${PR_HEAD_REF}
             git merge origin/${PR_BASE_REF}
+            # Resolve conflicts
             git commit
             git push
-            \`\`\`"
+            \`\`\`
+
+            _This check was triggered by a push to \`${PR_BASE_REF}\`_"
             else
             echo "[CHECK-ALL] ✅ PR #${pr_number} - No conflicts detected"
             fi
 
-          done < pr_numbers.txt
+                    done < pr_numbers.txt
 
-          echo "[CHECK-ALL] ========================================"
-          echo "[CHECK-ALL] BATCH CHECK COMPLETE"
-          echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
-          echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
+                    echo "[CHECK-ALL] ========================================"
+                    echo "[CHECK-ALL] BATCH CHECK COMPLETE"
+                    echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
+                    echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
 
-          if [ "${FAILED_COUNT}" -gt 0 ]; then
-            echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
-          fi
+                    if [ "${FAILED_COUNT}" -gt 0 ]; then
+                        echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
+                    fi
 
-          echo "[CHECK-ALL] ========================================"
+                    echo "[CHECK-ALL] ========================================"
