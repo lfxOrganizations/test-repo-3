@@ -9,3 +9,4 @@ print(test())
 print("FINAL")
 
 print("EXTRA LINE")
+print("ANOTHER EXTRA LINE")
