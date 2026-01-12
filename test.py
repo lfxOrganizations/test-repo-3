@@ -9,3 +9,5 @@ print(test())
 print("FINAL")
 
 print("RAISING CONFLICTS")
+print("EXTRA LINE")
+print("ANOTHER EXTRA LINE")
