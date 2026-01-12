@@ -205,141 +205,107 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "[CHECK-ALL] ========================================"
-          echo "[CHECK-ALL] Checking all open PRs for conflicts after merge to ${{ github.ref_name }}"
+            set -euo pipefail
+            echo "[CHECK-ALL] ========================================"
+            echo "[CHECK-ALL] Checking all open PRs for conflicts after merge to ${{ github.ref_name }}"
 
-          FAILED_PRS=""
-          FAILED_COUNT=0
+            FAILED_PRS=""
+            FAILED_COUNT=0
 
-          while IFS= read -r pr_number; do
+            while IFS= read -r pr_number; do
             echo "[CHECK-ALL] ----------------------------------------"
             echo "[CHECK-ALL] Checking PR #${pr_number}"
-            
-            PR_DATA=$(gh pr view ${pr_number} --json headRefName,headRefOid,baseRefName,baseRefOid,title)
-            PR_TITLE=$(echo "${PR_DATA}" | jq -r '.title')
-            PR_HEAD_REF=$(echo "${PR_DATA}" | jq -r '.headRefName')
-            PR_HEAD_SHA=$(echo "${PR_DATA}" | jq -r '.headRefOid')
-            PR_BASE_REF=$(echo "${PR_DATA}" | jq -r '.baseRefName')
-            PR_BASE_SHA=$(echo "${PR_DATA}" | jq -r '.baseRefOid')
-            
-            printf "[CHECK-ALL] PR #%s: %s\n" "${pr_number}" "${PR_TITLE}"
+
+            PR_DATA=$(gh pr view ${pr_number} --json title,headRefName,headRefOid,baseRefName,baseRefOid)
+            PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
+            PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+            PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
+            PR_BASE_REF=$(echo "$PR_DATA" | jq -r '.baseRefName')
+            PR_BASE_SHA=$(echo "$PR_DATA" | jq -r '.baseRefOid')
+
+            echo "[CHECK-ALL] PR #${pr_number}: ${PR_TITLE}"
             echo "[CHECK-ALL] Base: ${PR_BASE_REF} @ ${PR_BASE_SHA}"
             echo "[CHECK-ALL] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
-            
-            # Get PR files first
-            gh pr view ${pr_number} --json files --jq '.files[].path' > "pr_${pr_number}_files.txt"
-            FILE_COUNT=$(wc -l < "pr_${pr_number}_files.txt" | tr -d ' ')
-            echo "[CHECK-ALL] Files changed: ${FILE_COUNT}"
-            
-            if [ "${FILE_COUNT}" -eq 0 ]; then
-              echo "[CHECK-ALL] No files changed - skipping"
-              continue
-            fi
-            
-            # Calculate merge-base
-            echo "[CHECK-ALL] Fetching commits for merge-base calculation"
+
+            echo "[CHECK-ALL] Fetching commits"
             git fetch origin ${PR_BASE_SHA} >/dev/null 2>&1 || true
-            git fetch origin pull/${pr_number}/head >/dev/null 2>&1 || true
-            
-            echo "[CHECK-ALL] Calculating merge-base"
-            MERGE_BASE=$(git merge-base ${PR_BASE_SHA} ${PR_HEAD_SHA} 2>/dev/null || echo "")
-            
-            if [ -z "${MERGE_BASE}" ]; then
-              echo "[CHECK-ALL] ⚠️  Could not calculate merge-base - skipping"
-              continue
+            git fetch origin ${PR_HEAD_SHA} >/dev/null 2>&1 || true
+
+            # -------------------------------
+            # 1️⃣ Check if PR is behind base
+            # -------------------------------
+            if ! git merge-base --is-ancestor "${PR_BASE_SHA}" "${PR_HEAD_SHA}"; then
+                echo "[CHECK-ALL] ⚠️  PR #${pr_number} is behind ${PR_BASE_REF}"
+                BEHIND_BASE=true
+            else
+                BEHIND_BASE=false
             fi
-            
-            echo "[CHECK-ALL] Merge-base: ${MERGE_BASE}"
-            
-            # Use git merge-tree for conflict detection (non-destructive)
-            echo "[CHECK-ALL] Running git merge-tree to detect conflicts"
+
+            # --------------------------------
+            # 2️⃣ Simulate merge (GitHub-like)
+            # --------------------------------
+            git checkout -B __tmp_base "${PR_BASE_SHA}" >/dev/null 2>&1
+
             set +e
-            MERGE_OUTPUT=$(git merge-tree ${MERGE_BASE} ${PR_BASE_SHA} ${PR_HEAD_SHA} 2>&1)
+            git merge --no-commit --no-ff "${PR_HEAD_SHA}" >/tmp/merge_${pr_number}.log 2>&1
             MERGE_EXIT_CODE=$?
             set -e
-            
-            echo "[CHECK-ALL] Merge-tree exit code: ${MERGE_EXIT_CODE}"
-            
-            # Save merge output to file for debugging
-            echo "${MERGE_OUTPUT}" > /tmp/merge_tree_${pr_number}.log
-            
-            # Check for CONFLICT markers in output
-            touch "pr_${pr_number}_conflicts.txt"
-            echo "${MERGE_OUTPUT}" | grep "^CONFLICT" | \
-              sed -E 's/^CONFLICT \([^)]+\): Merge conflict in (.+)$/\1/' | \
-              grep -v "^CONFLICT" > "pr_${pr_number}_conflicts.txt" || true
-            
-            RAW_CONFLICT_COUNT=$(wc -l < "pr_${pr_number}_conflicts.txt" | tr -d ' ')
-            echo "[CHECK-ALL] Conflicts detected by merge-tree: ${RAW_CONFLICT_COUNT}"
-            
-            if [ "${RAW_CONFLICT_COUNT}" -gt 0 ]; then
-              echo "[CHECK-ALL] Conflicted files:"
-              cat "pr_${pr_number}_conflicts.txt" | while read file; do
-                echo "[CHECK-ALL]   - ${file}"
-              done
-            fi
 
-            # Filter to only files that were changed in the PR
-            touch "pr_${pr_number}_filtered.txt"
-            if [ -s "pr_${pr_number}_conflicts.txt" ]; then
-              while IFS= read -r conflict_file; do
-                if grep -Fxq "${conflict_file}" "pr_${pr_number}_files.txt"; then
-                  echo "${conflict_file}" >> "pr_${pr_number}_filtered.txt"
-                fi
-              done < "pr_${pr_number}_conflicts.txt"
-            fi
+            if [ "$MERGE_EXIT_CODE" -ne 0 ]; then
+                echo "[CHECK-ALL] ❌ Merge conflict detected"
 
-            CONFLICT_COUNT=0
-            if [ -s "pr_${pr_number}_filtered.txt" ]; then
-              CONFLICT_COUNT=$(wc -l < "pr_${pr_number}_filtered.txt" | tr -d ' ')
-            fi
+                git diff --name-only --diff-filter=U > "pr_${pr_number}_conflicts.txt"
+                CONFLICT_COUNT=$(wc -l < "pr_${pr_number}_conflicts.txt" | tr -d ' ')
 
-            echo "[CHECK-ALL] Filtered conflict count: ${CONFLICT_COUNT}"
-
-            if [ "${CONFLICT_COUNT}" -gt 0 ]; then
-              echo "[CHECK-ALL] ❌ PR #${pr_number} has ${CONFLICT_COUNT} conflicted file(s)"
-              
-              cat "pr_${pr_number}_filtered.txt" | while read file; do
+                cat "pr_${pr_number}_conflicts.txt" | while read -r file; do
                 echo "[CHECK-ALL]   ⚠️  ${file}"
-              done
+                done
 
-              FAILED_PRS="${FAILED_PRS}${pr_number},"
-              FAILED_COUNT=$((FAILED_COUNT + 1))
+                FAILED_PRS="${FAILED_PRS}${pr_number},"
+                FAILED_COUNT=$((FAILED_COUNT + 1))
 
-              CONFLICT_LIST=$(sed 's/^/- /' "pr_${pr_number}_filtered.txt" | head -n 100)
+                CONFLICT_LIST=$(sed 's/^/- /' "pr_${pr_number}_conflicts.txt")
 
-              echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
-              gh pr comment ${pr_number} --body "⚠️ **Merge Conflict Detected**
+                echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
+                gh pr comment "${pr_number}" --body "⚠️ **Merge Conflict Detected**
 
-              This PR has merge conflicts with the base branch \`${PR_BASE_REF}\`.
+        # This PR cannot be merged into \`${PR_BASE_REF}\` due to conflicts.
 
-              **Conflicted files:**
-              ${CONFLICT_LIST}
+        # **Conflicted files:**
+        # ${CONFLICT_LIST}
 
-                **Action required:**
-                \`\`\`bash
-                git fetch origin
-                git checkout ${PR_HEAD_REF}
-                git merge origin/${PR_BASE_REF}
-                # Resolve conflicts
-                git commit
-                git push
-                \`\`\`
+        # **Action required:**
+        # \`\`\`bash
+        # git fetch origin
+        # git checkout ${PR_HEAD_REF}
+        # git merge origin/${PR_BASE_REF}
+        # # resolve conflicts
+        # git commit
+        # git push
+        # \`\`\`
 
-                _This check was triggered by a push to \`${PR_BASE_REF}\`_"
-                else
-                echo "[CHECK-ALL] ✅ PR #${pr_number} - No conflicts detected"
-                fi
+        # _Triggered by a push to \`${PR_BASE_REF}\`_"
+        #       else
+        #         if [ "${BEHIND_BASE}" = true ]; then
+        #           echo "[CHECK-ALL] ⚠️  PR #${pr_number} has no conflicts but is behind ${PR_BASE_REF}"
+        #         else
+        #           echo "[CHECK-ALL] ✅ PR #${pr_number} is clean"
+        #         fi
+        #       fi
 
-            done < pr_numbers.txt
-  
-            echo "[CHECK-ALL] ========================================"
-            echo "[CHECK-ALL] BATCH CHECK COMPLETE"
-            echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
-            echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
-  
-            if [ "${FAILED_COUNT}" -gt 0 ]; then
-              echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
-            fi
-  
-            echo "[CHECK-ALL] ========================================"
+        #       git merge --abort >/dev/null 2>&1 || true
+        #       git checkout - >/dev/null 2>&1 || true
+
+        #     done < pr_numbers.txt
+
+        #     echo "[CHECK-ALL] ========================================"
+        #     echo "[CHECK-ALL] BATCH CHECK COMPLETE"
+        #     echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
+        #     echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
+
+        #     if [ "${FAILED_COUNT}" -gt 0 ]; then
+        #       echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
+        #       exit 1
+        #     fi
+
+        #     echo "[CHECK-ALL] ========================================"
