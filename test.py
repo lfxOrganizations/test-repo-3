@@ -3,3 +3,4 @@ def test():
     return True
 print("FILE LOADED")
 print(test())
+test()
