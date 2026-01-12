@@ -267,30 +267,28 @@ jobs:
                 CONFLICT_LIST=$(sed 's/^/- /' "pr_${pr_number}_conflicts.txt")
 
                 COMMENT_BODY=$(cat <<EOF
-              ⚠️ **Merge Conflict Detected**
+                ⚠️ **Merge Conflict Detected**
 
-              This PR cannot be merged into \`${PR_BASE_REF}\` due to conflicts.
+                This PR cannot be merged into \`${PR_BASE_REF}\` due to conflicts.
 
-              **Conflicted files:**
-              ${CONFLICT_LIST}
+                **Conflicted files:**
+                ${CONFLICT_LIST}
 
-              **Action required:**
-              \`\`\`bash
-              git fetch origin
-              git checkout ${PR_HEAD_REF}
-              git merge origin/${PR_BASE_REF}
-              # resolve conflicts
-              git commit
-              git push
-              \`\`\`
+                **Action required:**
+                \`\`\`bash
+                git fetch origin
+                git checkout ${PR_HEAD_REF}
+                git merge origin/${PR_BASE_REF}
+                # resolve conflicts
+                git commit
+                git push
+                \`\`\`
 
-              _Triggered by a push to \`${PR_BASE_REF}\`_
-              EOF
-              )
+                _Triggered by a push to \`${PR_BASE_REF}\`_
+                EOF
+                )
 
-              echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
-              gh pr comment "${pr_number}" --body "$COMMENT_BODY"
+                echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
+                gh pr comment "${pr_number}" --body "$COMMENT_BODY"
 
-
-
-                                    
+             
