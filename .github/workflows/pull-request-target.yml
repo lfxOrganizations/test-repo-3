@@ -268,44 +268,26 @@ jobs:
 
                 echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
                 gh pr comment "${pr_number}" --body "⚠️ **Merge Conflict Detected**
+                echo "[CHECK-ALL] Posting comment to PR #${pr_number}"
 
-        # This PR cannot be merged into \`${PR_BASE_REF}\` due to conflicts.
+                This PR cannot be merged into \`${PR_BASE_REF}\` due to conflicts.
 
-        # **Conflicted files:**
-        # ${CONFLICT_LIST}
+                **Conflicted files:**
+                ${CONFLICT_LIST}
 
-        # **Action required:**
-        # \`\`\`bash
-        # git fetch origin
-        # git checkout ${PR_HEAD_REF}
-        # git merge origin/${PR_BASE_REF}
-        # # resolve conflicts
-        # git commit
-        # git push
-        # \`\`\`
+                **Action required:**
+                \`\`\`bash
+                git fetch origin
+                git checkout ${PR_HEAD_REF}
+                git merge origin/${PR_BASE_REF}
+                # resolve conflicts
+                git commit
+                git push
+                \`\`\`
 
-        # _Triggered by a push to \`${PR_BASE_REF}\`_"
-        #       else
-        #         if [ "${BEHIND_BASE}" = true ]; then
-        #           echo "[CHECK-ALL] ⚠️  PR #${pr_number} has no conflicts but is behind ${PR_BASE_REF}"
-        #         else
-        #           echo "[CHECK-ALL] ✅ PR #${pr_number} is clean"
-        #         fi
-        #       fi
+                _Triggered by a push to \`${PR_BASE_REF}\`_
+                EOF
+                )"
 
-        #       git merge --abort >/dev/null 2>&1 || true
-        #       git checkout - >/dev/null 2>&1 || true
 
-        #     done < pr_numbers.txt
-
-        #     echo "[CHECK-ALL] ========================================"
-        #     echo "[CHECK-ALL] BATCH CHECK COMPLETE"
-        #     echo "[CHECK-ALL] Total PRs checked: $(wc -l < pr_numbers.txt | tr -d ' ')"
-        #     echo "[CHECK-ALL] PRs with conflicts: ${FAILED_COUNT}"
-
-        #     if [ "${FAILED_COUNT}" -gt 0 ]; then
-        #       echo "[CHECK-ALL] Failed PRs: ${FAILED_PRS%,}"
-        #       exit 1
-        #     fi
-
-        #     echo "[CHECK-ALL] ========================================"
+                      
