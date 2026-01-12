@@ -1,3 +1,4 @@
 def test():
     print("NOT A TES FN")
     return True
+print("FILE LOADED")
