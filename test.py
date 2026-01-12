@@ -4,3 +4,4 @@ def test():
 print("FILE LOADED")
 print(test())
 test()
+print("DONE")
