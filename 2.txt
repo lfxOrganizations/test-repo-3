@@ -84,19 +84,15 @@ jobs:
           echo "[CHECK] ========================================"
           echo "[CHECK] Checking PR #${{ github.event.pull_request.number }}"
 
-          echo "[CHECK] Fetching latest base branch: ${{ github.event.pull_request.base.ref }}"
-          git fetch origin ${{ github.event.pull_request.base.ref }}
+          # Fetch base branch
+          echo "[CHECK] Fetching base branch: ${{ github.event.pull_request.base.ref }}"
+          git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
           # Get PR changed files
           echo "[CHECK] Fetching changed files in PR"
           gh pr view ${{ github.event.pull_request.number }} \
             --json files \
             --jq '.files[].path' > pr_files.txt
-
-          # Resolve latest base SHA
-          LATEST_BASE_SHA=$(git rev-parse origin/${{ github.event.pull_request.base.ref }})
-          echo "[CHECK] Latest base SHA: ${LATEST_BASE_SHA}"
-
 
           FILE_COUNT=$(wc -l < pr_files.txt | tr -d ' ')
           echo "[CHECK] Files changed: ${FILE_COUNT}"
@@ -114,13 +110,13 @@ jobs:
 
           # Calculate merge-base
           echo "[CHECK] Calculating merge-base"
-          MERGE_BASE=$(git merge-base ${LATEST_BASE_SHA} ${{ github.event.pull_request.head.sha }})
+          MERGE_BASE=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
           echo "[CHECK] Merge-base: ${MERGE_BASE}"
 
           # Run git merge-tree to detect conflicts
           echo "[CHECK] Running git merge-tree to detect conflicts"
           set +e
-          MERGE_OUTPUT=$(git merge-tree ${MERGE_BASE} ${LATEST_BASE_SHA} ${{ github.event.pull_request.head.sha }} 2>&1)
+          MERGE_OUTPUT=$(git merge-tree ${MERGE_BASE} ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} 2>&1)
           MERGE_EXIT_CODE=$?
           set -e
 
