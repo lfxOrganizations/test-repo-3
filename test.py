@@ -4,3 +4,4 @@ def test():
 #2
 
 print(test())
+print("Test completed.")
