@@ -215,28 +215,21 @@ jobs:
             echo "[CHECK-ALL] ----------------------------------------"
             echo "[CHECK-ALL] Checking PR #${pr_number}"
 
-            PR_DATA=$(gh pr view ${pr_number} --json headRefName,headRefOid,baseRefName,title)
+            PR_DATA=$(gh pr view ${pr_number} --json headRefName,headRefOid,baseRefName,baseRefOid,title)
             PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
             PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
             PR_BASE_REF=$(echo "$PR_DATA" | jq -r '.baseRefName')
+            PR_BASE_SHA=$(echo "$PR_DATA" | jq -r '.baseRefOid')
             PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
 
             echo "[CHECK-ALL] PR #${pr_number}: ${PR_TITLE}"
-            echo "[CHECK-ALL] Base: ${PR_BASE_REF}"
+            echo "[CHECK-ALL] Base: ${PR_BASE_REF} @ ${PR_BASE_SHA}"
             echo "[CHECK-ALL] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
 
-            echo "[CHECK-ALL] Fetching latest base branch: ${PR_BASE_REF}"
-            git fetch origin ${PR_BASE_REF} >/dev/null 2>&1 || true
-
-            # Resolve latest base SHA
-            LATEST_BASE_SHA=$(git rev-parse origin/${PR_BASE_REF})
-            echo "[CHECK-ALL] Latest base SHA: ${LATEST_BASE_SHA}"
-
-            # Fetch PR head SHA
+            git fetch origin ${PR_BASE_SHA} >/dev/null 2>&1 || true
             git fetch origin ${PR_HEAD_SHA} >/dev/null 2>&1 || true
 
-            # Checkout latest base as working tree
-            git checkout -B __tmp_base "${LATEST_BASE_SHA}" >/dev/null 2>&1
+            git checkout -B __tmp_base "${PR_BASE_SHA}" >/dev/null 2>&1
 
             set +e
             git merge --no-commit --no-ff "${PR_HEAD_SHA}" >/tmp/merge_${pr_number}.log 2>&1
