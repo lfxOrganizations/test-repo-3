@@ -103,9 +103,6 @@ jobs:
             if [ "$MERGE_EXIT_CODE" -ne 0 ]; then
               echo "[CHECK-ALL] ❌ Merge conflict detected in PR #${pr_number}"
 
-              CONFLICT_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ',' | sed 's/,$//')
-              echo "[CHECK-ALL] Conflicted files: ${CONFLICT_FILES}"
-
               gh api repos/${{ github.repository }}/check-runs \
                 -X POST \
                 -f name="${CHECK_NAME}" \
@@ -113,7 +110,7 @@ jobs:
                 -f status="completed" \
                 -f conclusion="failure" \
                 -f "output[title]=Merge conflicts detected" \
-                -f "output[summary]=This PR has merge conflicts with ${PR_BASE_REF}. Please resolve conflicts in: ${CONFLICT_FILES}"
+                -f "output[summary]=This PR has merge conflicts with ${PR_BASE_REF}. Please update your branch." \
 
               FAILED=true
               CONFLICT_SUMMARY="${CONFLICT_SUMMARY}
