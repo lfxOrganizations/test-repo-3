@@ -30,7 +30,15 @@ jobs:
           echo "[SETUP] Branch: ${{ github.ref }}"
           echo "[SETUP] SHA: ${{ github.sha }}"
 
-
+          if [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            echo "[SETUP] PR Number: ${{ github.event.pull_request.number }}"
+            PR_TITLE='${{ github.event.pull_request.title }}'
+            printf "[SETUP] PR Title: %s\n" "${PR_TITLE}"
+            echo "[SETUP] Base Branch: ${{ github.event.pull_request.base.ref }}"
+            echo "[SETUP] Base SHA: ${{ github.event.pull_request.base.sha }}"
+            echo "[SETUP] Head Branch: ${{ github.event.pull_request.head.ref }}"
+            echo "[SETUP] Head SHA: ${{ github.event.pull_request.head.sha }}"
+          fi
 
           echo "[SETUP] Current Git Ref: $(git rev-parse HEAD)"
           echo "[SETUP] Git Version: $(git --version)"
