@@ -114,13 +114,18 @@ jobs:
 
           # Calculate merge-base
           echo "[CHECK] Calculating merge-base"
-          MERGE_BASE=$(git merge-base ${LATEST_BASE_SHA} ${{ github.event.pull_request.head.sha }})
+          MERGE_BASE=$(git merge-base "${LATEST_BASE_SHA}" "${{ github.event.pull_request.head.sha }}")
           echo "[CHECK] Merge-base: ${MERGE_BASE}"
 
           # Run git merge-tree to detect conflicts
           echo "[CHECK] Running git merge-tree to detect conflicts"
           set +e
-          MERGE_OUTPUT=$(git merge-tree ${MERGE_BASE} ${LATEST_BASE_SHA} ${{ github.event.pull_request.head.sha }} 2>&1)
+          
+          MERGE_OUTPUT=$(git merge-tree \
+            "${MERGE_BASE}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            "${LATEST_BASE_SHA}" \
+            2>&1)
           MERGE_EXIT_CODE=$?
           set -e
 
