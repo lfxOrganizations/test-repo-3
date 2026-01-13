@@ -2,7 +2,7 @@ name: Merge Conflict Detector
 
 on:
   push:
-    branches: [main, develop]  # Add other base branches as needed
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -115,7 +115,6 @@ jobs:
               FAILED=true
               CONFLICT_SUMMARY="${CONFLICT_SUMMARY}
                PR #${pr_number}: ${PR_TITLE}
-               Files: ${CONFLICT_FILES}"
             else
               echo "[CHECK-ALL] ✅ No conflicts"
 
