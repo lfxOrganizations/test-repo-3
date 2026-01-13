@@ -3,3 +3,4 @@ def test():
     return True
 #2
 
+print(test())
