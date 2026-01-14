@@ -137,16 +137,6 @@ jobs:
           else
             echo "[RESULT] ❌ STATUS: FAILED"
             echo "[RESULT] Merge conflicts detected with latest base branch"
-            echo "[RESULT]"
-            echo "[RESULT] Conflicted files:"
-            cat /tmp/merge_output.log | grep "CONFLICT" || echo "[RESULT]   (See merge output for details)"
-            echo "[RESULT]"
-            echo "[RESULT] ACTION REQUIRED:"
-            echo "[RESULT] Please update your branch to resolve these conflicts:"
-            echo "[RESULT]   git fetch origin"
-            echo "[RESULT]   git checkout ${{ github.event.pull_request.head.ref }}"
-            echo "[RESULT]   git merge origin/${{ github.event.pull_request.base.ref }}"
-            echo "[RESULT] ========================================"
             exit 1
           fi
 
@@ -233,7 +223,6 @@ jobs:
             echo "${CONFLICT_SUMMARY}"
             echo "[CHECK-ALL] ========================================"
             echo "[CHECK-ALL] Check runs have been posted to each PR"
-            echo "[CHECK-ALL] PR authors should update their branches"
             echo "[CHECK-ALL] ========================================"
             # This job now exits with failure when conflicts are detected
             exit 1
