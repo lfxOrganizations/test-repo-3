@@ -59,91 +59,87 @@ jobs:
           fi
           echo "[FETCH] ========================================"
 
-      - name: Check single PR for conflicts
+      - name: Check single PR for merge conflicts
         if: github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           echo "[CHECK] ========================================"
           echo "[CHECK] Checking PR #${{ github.event.pull_request.number }}"
 
-          # Fetch base branch to get latest commit
-          echo "[CHECK] Fetching base branch: ${{ github.event.pull_request.base.ref }}"
-          git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # Get latest base SHA
-          LATEST_BASE_SHA=$(git rev-parse origin/${{ github.event.pull_request.base.ref }})
-          echo "[CHECK] Latest base SHA: ${LATEST_BASE_SHA}"
+          # ----------------------------------------
+          # Fetch latest base branch commit
+          # ----------------------------------------
+          echo "[CHECK] Fetching latest base branch: ${BASE_REF}"
+          git fetch origin "${BASE_REF}"
 
-          # Fetch latest PR head from GitHub API (authoritative)
-          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} \
-            --json headRefName,headRefOid)
+          BASE_SHA=$(git rev-parse "origin/${BASE_REF}")
+          echo "[CHECK] Latest base SHA: ${BASE_SHA}"
+
+          # ----------------------------------------
+          # Fetch authoritative PR head (latest)
+          # ----------------------------------------
+          PR_DATA=$(gh pr view "$PR_NUMBER" --json headRefName,headRefOid,title)
 
           PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
           PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
+          PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
 
           echo "[CHECK] Latest PR head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
 
-          # Force-fetch the PR branch ref
-          git fetch origin \
-            +refs/heads/${PR_HEAD_REF}:refs/remotes/origin/pr-head
+          # Fetch PR commit directly (works for forks)
+          git fetch origin "${PR_HEAD_SHA}"
 
-          # Get PR changed files
+          # ----------------------------------------
+          # List changed files (informational)
+          # ----------------------------------------
           echo "[CHECK] Fetching changed files in PR"
-          gh pr view ${{ github.event.pull_request.number }} \
-            --json files \
-            --jq '.files[].path' > pr_files.txt
+          gh pr view "$PR_NUMBER" --json files --jq '.files[].path' > pr_files.txt
 
           FILE_COUNT=$(wc -l < pr_files.txt | tr -d ' ')
-          echo "[CHECK] Files changed: ${FILE_COUNT}"
+          echo "[CHECK] Total files changed: ${FILE_COUNT}"
 
-          if [ "${FILE_COUNT}" -eq 0 ]; then
-            echo "[CHECK] No files changed - exiting with success"
-            echo "[CHECK] ========================================"
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "[CHECK] No files changed — exiting successfully"
             exit 0
           fi
 
           echo "[CHECK] Changed files:"
-          cat pr_files.txt | while read file; do
-            echo "[CHECK]   - ${file}"
-          done
+          sed 's/^/[CHECK]   - /' pr_files.txt
 
-          # Checkout base and attempt merge with latest base
-          git checkout -B __tmp_base origin/${{ github.event.pull_request.base.ref }}
+          # ----------------------------------------
+          # Conflict detection (NO MERGE)
+          # ----------------------------------------
+          echo "[CHECK] Running merge-tree conflict analysis"
 
-          set +e
-          git merge --no-commit --no-ff refs/remotes/origin/pr-head >/tmp/merge_output.log 2>&1
-          MERGE_EXIT_CODE=$?
-          set -e
+          MERGE_OUTPUT=$(git merge-tree "$BASE_SHA" "$PR_HEAD_SHA")
 
-          echo "[CHECK] Merge exit code: ${MERGE_EXIT_CODE}"
-
-          # Get PR title
-          PR_TITLE=$(gh pr view ${{ github.event.pull_request.number }} --json title --jq '.title')
-
-          # Generate result
+          # ----------------------------------------
+          # Results
+          # ----------------------------------------
           echo "[RESULT] ========================================"
           echo "[RESULT] CONFLICT DETECTION SUMMARY"
           echo "[RESULT] ========================================"
-          printf "[RESULT] PR #%s: %s\n" "${{ github.event.pull_request.number }}" "${PR_TITLE}"
-          echo "[RESULT] Base: ${{ github.event.pull_request.base.ref }} @ ${LATEST_BASE_SHA}"
-          echo "[RESULT] Head: ${{ github.event.pull_request.head.ref }} @ ${PR_HEAD_SHA}"
+          printf "[RESULT] PR #%s: %s\n" "$PR_NUMBER" "$PR_TITLE"
+          echo "[RESULT] Base: ${BASE_REF} @ ${BASE_SHA}"
+          echo "[RESULT] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
           echo "[RESULT] ----------------------------------------"
-          echo "[RESULT] Total files changed in PR: ${FILE_COUNT}"
+          echo "[RESULT] Total files changed: ${FILE_COUNT}"
           echo "[RESULT] ========================================"
 
-          # Clean up
-          git merge --abort >/dev/null 2>&1 || true
-
-          if [ "$MERGE_EXIT_CODE" -eq 0 ]; then
-            echo "[RESULT] ✅ STATUS: PASSED"
-            echo "[RESULT] No merge conflicts detected"
-            echo "[RESULT] ========================================"
-            exit 0
-          else
+          if echo "$MERGE_OUTPUT" | grep -q "<<<<<<<"; then
             echo "[RESULT] ❌ STATUS: FAILED"
             echo "[RESULT] Merge conflicts detected with latest base branch"
             exit 1
+          else
+            echo "[RESULT] ✅ STATUS: PASSED"
+            echo "[RESULT] No merge conflicts detected"
+            exit 0
           fi
 
       - name: Check all open PRs for conflicts
