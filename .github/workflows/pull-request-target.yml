@@ -170,6 +170,7 @@ jobs:
             echo MERGE_EXIT_CODE=${MERGE_EXIT_CODE}
 
             if [ "$MERGE_EXIT_CODE" -ne 0 ]; then
+              echo MERGE_EXIT_CODE=${MERGE_EXIT_CODE}
               echo "[CHECK-ALL] ❌ Merge conflict detected in PR #${pr_number}"
 
               gh api repos/${{ github.repository }}/check-runs \
