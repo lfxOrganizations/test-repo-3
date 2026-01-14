@@ -146,8 +146,8 @@ jobs:
             echo "[CHECK-ALL] Head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
 
             echo "[CHECK-ALL] Fetching branches..."
-            git fetch origin ${PR_BASE_REF} >/dev/null 2>&1 || true
-            git fetch origin ${PR_HEAD_REF} >/dev/null 2>&1 || true
+            git fetch origin ${PR_BASE_REF} >/dev/null 2>&1
+            git fetch origin pull/${pr_number}/head:pr-${pr_number} >/dev/null 2>&1
 
             # Get latest base SHA
             LATEST_BASE_SHA=$(git rev-parse origin/${PR_BASE_REF})
@@ -157,8 +157,8 @@ jobs:
             git checkout -B __tmp_base origin/${PR_BASE_REF} >/dev/null 2>&1
 
             set +e
-            git merge --no-commit --no-ff "origin/${PR_HEAD_REF}" \
-              >/tmp/merge_${pr_number}.log 2>&1
+            git merge --no-commit --no-ff "pr-${pr_number}" \
+            >/tmp/merge_${pr_number}.log 2>&1
             MERGE_EXIT_CODE=$?
             set -e
 
