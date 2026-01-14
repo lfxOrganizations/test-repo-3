@@ -22,14 +22,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Log environment
-        run: |
-          echo "[SETUP] ========================================"
-          echo "[SETUP] Base branch updated: ${{ github.ref_name }}"
-          echo "[SETUP] Commit SHA: ${{ github.sha }}"
-          echo "[SETUP] Repository: ${{ github.repository }}"
-          echo "[SETUP] ========================================"
-
       - name: Get open PRs targeting this branch
         id: get-prs
         env:
@@ -72,18 +64,12 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # ----------------------------------------
-          # Fetch latest base branch commit
-          # ----------------------------------------
           echo "[CHECK] Fetching latest base branch: ${BASE_REF}"
           git fetch origin "${BASE_REF}"
 
           BASE_SHA=$(git rev-parse "origin/${BASE_REF}")
           echo "[CHECK] Latest base SHA: ${BASE_SHA}"
 
-          # ----------------------------------------
-          # Fetch authoritative PR head (latest)
-          # ----------------------------------------
           PR_DATA=$(gh pr view "$PR_NUMBER" --json headRefName,headRefOid,title)
 
           PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
@@ -95,9 +81,6 @@ jobs:
           # Fetch PR commit directly (works for forks)
           git fetch origin "${PR_HEAD_SHA}"
 
-          # ----------------------------------------
-          # List changed files (informational)
-          # ----------------------------------------
           echo "[CHECK] Fetching changed files in PR"
           gh pr view "$PR_NUMBER" --json files --jq '.files[].path' > pr_files.txt
 
@@ -112,16 +95,10 @@ jobs:
           echo "[CHECK] Changed files:"
           sed 's/^/[CHECK]   - /' pr_files.txt
 
-          # ----------------------------------------
-          # Conflict detection (NO MERGE)
-          # ----------------------------------------
           echo "[CHECK] Running merge-tree conflict analysis"
 
           MERGE_OUTPUT=$(git merge-tree "$BASE_SHA" "$PR_HEAD_SHA")
 
-          # ----------------------------------------
-          # Results
-          # ----------------------------------------
           echo "[RESULT] ========================================"
           echo "[RESULT] CONFLICT DETECTION SUMMARY"
           echo "[RESULT] ========================================"
