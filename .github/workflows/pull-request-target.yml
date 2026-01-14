@@ -169,7 +169,7 @@ jobs:
             CHECK_NAME="Merge Conflict Detector"
             echo MERGE_EXIT_CODE=${MERGE_EXIT_CODE}
 
-            if [ "$MERGE_EXIT_CODE" -eq 1 ]; then
+            if [ "$MERGE_EXIT_CODE" -eq 0 ]; then
               echo MERGE_EXIT_CODE=${MERGE_EXIT_CODE}
               echo "[CHECK-ALL] ❌ Merge conflict detected in PR #${pr_number}"
 
