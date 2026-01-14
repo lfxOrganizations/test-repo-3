@@ -75,12 +75,18 @@ jobs:
           LATEST_BASE_SHA=$(git rev-parse origin/${{ github.event.pull_request.base.ref }})
           echo "[CHECK] Latest base SHA: ${LATEST_BASE_SHA}"
 
-          # Get PR head SHA
-          PR_HEAD_SHA=${{ github.event.pull_request.head.sha }}
-          echo "[CHECK] PR head SHA: ${PR_HEAD_SHA}"
+          # Fetch latest PR head from GitHub API (authoritative)
+          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} \
+            --json headRefName,headRefOid)
 
-          # Fetch PR head
-          git fetch origin ${PR_HEAD_SHA}
+          PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+          PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
+
+          echo "[CHECK] Latest PR head: ${PR_HEAD_REF} @ ${PR_HEAD_SHA}"
+
+          # Force-fetch the PR branch ref
+          git fetch origin \
+            +refs/heads/${PR_HEAD_REF}:refs/remotes/origin/pr-head
 
           # Get PR changed files
           echo "[CHECK] Fetching changed files in PR"
@@ -103,10 +109,10 @@ jobs:
           done
 
           # Checkout base and attempt merge with latest base
-          git checkout -B __tmp_base "${LATEST_BASE_SHA}" >/dev/null 2>&1
+          git checkout -B __tmp_base origin/${{ github.event.pull_request.base.ref }}
 
           set +e
-          git merge --no-commit --no-ff "${PR_HEAD_SHA}" >/tmp/merge_output.log 2>&1
+          git merge --no-commit --no-ff refs/remotes/origin/pr-head >/tmp/merge_output.log 2>&1
           MERGE_EXIT_CODE=$?
           set -e
 
@@ -217,7 +223,6 @@ jobs:
 
           echo "[CHECK-ALL] ========================================"
           if [ "$FAILED" = true ]; then
-            echo "[CHECK-ALL] ❌ WORKFLOW FAILED - CONFLICTS DETECTED"
             echo "[CHECK-ALL] ========================================"
             echo "[CHECK-ALL] The following PRs have merge conflicts:"
             echo "${CONFLICT_SUMMARY}"
