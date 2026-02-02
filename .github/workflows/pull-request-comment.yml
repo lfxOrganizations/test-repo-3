@@ -1,7 +1,7 @@
-name: Comment on First-Time Contributor PR
+name: On PR Open – First-Time Contributor Comment
 
 on:
-  pull_request_target:  # Changed from pull_request
+  pull_request_target:
     types: [opened]
 
 permissions:
@@ -9,33 +9,5 @@ permissions:
   issues: write
 
 jobs:
-  first-pr-comment:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check if contributor has merged PRs before
-        id: check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const author = context.payload.pull_request.user.login;
-
-            const { data } = await github.rest.search.issuesAndPullRequests({
-              q: `repo:${owner}/${repo} is:pr is:merged author:${author}`
-            });
-
-            core.setOutput("merged_count", data.total_count);
-
-      - name: Comment on first PR
-        if: steps.check.outputs.merged_count == '0'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: `Thank you for your first contribution! We appreciate your effort and look forward to more contributions in the future.`
-            });
+  call-first-pr-comment:
+    uses: yashgoyal0110/.github/.github/workflows/pull-request-comment.yml@feat/pr-comment-gha
