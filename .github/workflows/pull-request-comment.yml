@@ -2,7 +2,11 @@ name: Welcome First-Time Contributors
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review,]
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   welcome:
