@@ -1,5 +1,4 @@
 name: Welcome First-Time Contributors
-
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
@@ -7,10 +6,13 @@ on:
 permissions:
   pull-requests: write
   contents: read
+  issues: write  # Add this
 
 jobs:
   welcome:
     uses: yashgoyal0110/.github/.github/workflows/pull-request-comment.yml@feat/pr-comment-gha
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}  # Pass the token explicitly
     with:
       comment-body: |
         👋 Welcome @${{ github.actor }}!
