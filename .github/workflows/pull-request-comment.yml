@@ -1,8 +1,13 @@
 name: Comment on First-Time Contributor PR
 
 on:
-    pull_request:
-        types: [opened]
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
 jobs:
   first-pr-comment:
     runs-on: ubuntu-latest
