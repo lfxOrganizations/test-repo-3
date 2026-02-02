@@ -1,0 +1,15 @@
+name: Welcome First-Time Contributors
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  welcome:
+    uses: yashgoyal0110/.github/.github/workflows/pull-request-comment.yml@feat/pr-comment-gha
+    with:
+      comment-body: |
+        👋 Welcome @${{ github.actor }}!
+        
+        This looks like your **first PR here** — thank you for contributing 🎉  
+        A maintainer will review it soon. Let us know if you need help!
